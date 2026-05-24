@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 
 export default function RoomManager({ 
@@ -8,14 +8,23 @@ export default function RoomManager({
   setRoomId, 
   isHost, 
   setIsHost, 
-  isTeachingMode 
+  isTeachingMode,
+  preferredAction
 }) {
   const [mqttStatus, setMqttStatus] = useState('disconnected'); // disconnected, connecting, connected, error
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [copied, setCopied] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState(0);
   const canvasRef = useRef(null);
+  const joinInputRef = useRef(null);
   const clientRef = useRef(null);
   const syncInProgress = useRef(false);
+  const autoActionDone = useRef(false);
+  const gameStateRef = useRef(gameState);
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   // Parse room from URL on mount
   useEffect(() => {
@@ -27,6 +36,20 @@ export default function RoomManager({
       connectToRoom(roomParam, false);
     }
   }, []);
+
+  // Execute entry-page preferred action once
+  useEffect(() => {
+    if (!preferredAction || autoActionDone.current || roomId) return;
+    if (preferredAction === 'create' && mqttStatus === 'disconnected') {
+      autoActionDone.current = true;
+      handleCreateRoom();
+      return;
+    }
+    if (preferredAction === 'join' && joinInputRef.current) {
+      autoActionDone.current = true;
+      joinInputRef.current.focus();
+    }
+  }, [preferredAction, roomId, mqttStatus]);
 
   // Generate QR Code when Room ID changes
   useEffect(() => {
@@ -55,14 +78,63 @@ export default function RoomManager({
       }
       
       const payload = JSON.stringify({
+        type: 'state',
         senderId: clientRef.current.options.clientId,
         timestamp: Date.now(),
         state: gameState
       });
       
       clientRef.current.publish(`mahjong-helper/room/${roomId}/state`, payload, { qos: 1, retain: true });
+      setLastSyncAt(Date.now());
     }
   }, [gameState, roomId, mqttStatus]);
+
+  // Guest periodic sync requests (when sharing the same room on multiple devices)
+  useEffect(() => {
+    if (!roomId || mqttStatus !== 'connected' || !clientRef.current || isHost) return;
+
+    const requestSync = () => {
+      if (!clientRef.current) return;
+      const requestPayload = JSON.stringify({
+        type: 'sync-request',
+        senderId: clientRef.current.options.clientId,
+        timestamp: Date.now()
+      });
+      clientRef.current.publish(`mahjong-helper/room/${roomId}/sync-request`, requestPayload, { qos: 1, retain: false });
+    };
+
+    requestSync();
+    const timerId = setInterval(requestSync, 15000);
+    return () => clearInterval(timerId);
+  }, [roomId, mqttStatus, isHost]);
+
+  // Host periodic snapshot broadcast
+  useEffect(() => {
+    if (!roomId || mqttStatus !== 'connected' || !clientRef.current || !isHost) return;
+
+    const timerId = setInterval(() => {
+      if (!clientRef.current) return;
+      const payload = JSON.stringify({
+        type: 'state',
+        senderId: clientRef.current.options.clientId,
+        timestamp: Date.now(),
+        state: gameState
+      });
+      clientRef.current.publish(`mahjong-helper/room/${roomId}/state`, payload, { qos: 1, retain: true });
+      setLastSyncAt(Date.now());
+    }, 20000);
+
+    return () => clearInterval(timerId);
+  }, [roomId, mqttStatus, isHost, gameState]);
+
+  // Cleanup mqtt connection on unmount
+  useEffect(() => {
+    return () => {
+      if (clientRef.current) {
+        clientRef.current.end();
+      }
+    };
+  }, []);
 
   const connectToRoom = (targetRoomId, amIHost) => {
     if (clientRef.current) {
@@ -107,15 +179,41 @@ export default function RoomManager({
         client.on('connect', () => {
           setMqttStatus('connected');
           client.subscribe(`mahjong-helper/room/${targetRoomId}/state`, { qos: 1 });
+          client.subscribe(`mahjong-helper/room/${targetRoomId}/sync-request`, { qos: 1 });
           console.log(`Successfully connected to broker ${brokerUrl} for room ${targetRoomId}`);
+
+          if (!amIHost) {
+            const requestPayload = JSON.stringify({
+              type: 'sync-request',
+              senderId: clientId,
+              timestamp: Date.now()
+            });
+            client.publish(`mahjong-helper/room/${targetRoomId}/sync-request`, requestPayload, { qos: 1, retain: false });
+          }
         });
 
         client.on('message', (topic, message) => {
           try {
             const data = JSON.parse(message.toString());
-            if (data.senderId !== clientId) {
+
+            if (data.type === 'sync-request') {
+              if (amIHost && data.senderId !== clientId) {
+                const payload = JSON.stringify({
+                  type: 'state',
+                  senderId: clientId,
+                  timestamp: Date.now(),
+                  state: gameStateRef.current
+                });
+                client.publish(`mahjong-helper/room/${targetRoomId}/state`, payload, { qos: 1, retain: true });
+                setLastSyncAt(Date.now());
+              }
+              return;
+            }
+
+            if (data.senderId !== clientId && data.type !== 'sync-request') {
               syncInProgress.current = true;
               setGameState(data.state);
+              setLastSyncAt(Date.now());
             }
           } catch (e) {
             console.error('Error parsing sync message:', e);
@@ -213,6 +311,7 @@ export default function RoomManager({
 
           <form onSubmit={handleJoinRoomSubmit} className="flex gap-2">
             <input
+              ref={joinInputRef}
               type="text"
               placeholder="輸入 5 碼房間代號 (例如: mj-12345)"
               value={joinCodeInput}
@@ -250,6 +349,11 @@ export default function RoomManager({
               <p className="text-[10px] text-gray-500 mt-1">
                 身分: {isHost ? '房主 (主持)' : '成員 (加入)'}
               </p>
+              {lastSyncAt > 0 && (
+                <p className="text-[10px] text-gray-500 mt-1">
+                  最後同步: {new Date(lastSyncAt).toLocaleTimeString('zh-TW')}
+                </p>
+              )}
             </div>
           </div>
 

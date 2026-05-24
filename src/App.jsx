@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import SeatSetup from './components/SeatSetup';
 import Scoreboard from './components/Scoreboard';
 import RoomManager from './components/RoomManager';
@@ -24,17 +24,35 @@ const INITIAL_STATE = {
   }
 };
 
-export default function App() {
-  const [gameState, setGameState] = useState(INITIAL_STATE);
-  const [appMode, setAppMode] = useState('setup'); // setup, play, finish, view
-  const [isTeachingMode, setIsTeachingMode] = useState(true);
-  const [roomId, setRoomId] = useState('');
-  const [isHost, setIsHost] = useState(false);
+const STORAGE_KEY = 'mahjong-helper:session-v1';
 
-  // Check URL parameters for share-view
+function loadPersistedSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error('Failed to load persisted session:', err);
+    return null;
+  }
+}
+
+export default function App() {
+  const persisted = loadPersistedSession();
+  const [gameState, setGameState] = useState(persisted?.gameState || INITIAL_STATE);
+  const [appMode, setAppMode] = useState(persisted?.appMode || 'entry'); // entry, setup, play, finish, view
+  const [isTeachingMode, setIsTeachingMode] = useState(
+    typeof persisted?.isTeachingMode === 'boolean' ? persisted.isTeachingMode : true
+  );
+  const [roomId, setRoomId] = useState(persisted?.roomId || '');
+  const [isHost, setIsHost] = useState(Boolean(persisted?.isHost));
+  const [entryChoice, setEntryChoice] = useState(persisted?.entryChoice || '');
+
+  // Check URL parameters for share-view / direct room join
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const shareParam = params.get('share');
+    const roomParam = params.get('room');
     if (shareParam) {
       try {
         const decodedData = JSON.parse(decodeURIComponent(atob(shareParam)));
@@ -43,8 +61,36 @@ export default function App() {
       } catch (e) {
         console.error('Failed to parse shared URL state:', e);
       }
+      return;
+    }
+
+    if (roomParam) {
+      setAppMode('play');
+      setRoomId(roomParam.toLowerCase());
+      setIsHost(false);
+      setEntryChoice('join');
     }
   }, []);
+
+  // Persist important session states to avoid losing records after refresh
+  useEffect(() => {
+    if (appMode === 'view') return;
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          gameState,
+          appMode,
+          isTeachingMode,
+          roomId,
+          isHost,
+          entryChoice,
+        })
+      );
+    } catch (err) {
+      console.error('Failed to persist session:', err);
+    }
+  }, [gameState, appMode, isTeachingMode, roomId, isHost, entryChoice]);
 
   const handleSeatSetupComplete = (arrangedPlayers) => {
     setGameState(prev => ({
@@ -66,9 +112,11 @@ export default function App() {
         ...INITIAL_STATE,
         baseSetting: gameState.baseSetting // Keep current base settings
       });
-      setAppMode('setup');
+      setAppMode('entry');
       setRoomId('');
       setIsHost(false);
+      setEntryChoice('');
+      localStorage.removeItem(STORAGE_KEY);
       window.history.pushState({}, document.title, window.location.pathname);
     }
   };
@@ -121,7 +169,7 @@ export default function App() {
               </button>
             </div>
 
-            {appMode !== 'setup' && appMode !== 'view' && (
+            {appMode !== 'setup' && appMode !== 'entry' && appMode !== 'view' && (
               <button
                 onClick={handleRestartGame}
                 className="btn btn-secondary py-1.5 px-3 text-xs border-red-900/30 text-red-400 hover:bg-red-950/20"
@@ -135,6 +183,56 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="container flex-grow py-6 px-4">
+        {/* Entry: choose create/join room first */}
+        {appMode === 'entry' && (
+          <div className="max-w-3xl mx-auto space-y-6">
+            <div className="glass-panel p-6 text-center bg-emerald-950/20 border-[#D4AF37]">
+              <h2 className="text-2xl font-black text-[#D4AF37] mb-2">先選擇連線方式</h2>
+              <p className="text-sm text-gray-300">
+                進入後可建立房間或加入既有房間，並支援自動同步與重整後保留紀錄。
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                onClick={() => {
+                  setEntryChoice('create');
+                  setAppMode('setup');
+                }}
+                className="glass-panel p-5 text-left room-choice-card"
+              >
+                <span className="text-2xl block mb-2">🏠</span>
+                <h3 className="text-lg font-bold text-white">建立房間</h3>
+                <p className="text-xs text-gray-400 mt-1">你當主持人，產生房號與 QR Code 給其他人加入。</p>
+              </button>
+
+              <button
+                onClick={() => {
+                  setEntryChoice('join');
+                  setAppMode('play');
+                }}
+                className="glass-panel p-5 text-left room-choice-card"
+              >
+                <span className="text-2xl block mb-2">📲</span>
+                <h3 className="text-lg font-bold text-white">加入房間</h3>
+                <p className="text-xs text-gray-400 mt-1">輸入房號或掃 QR Code，加入同一局並同步更新。</p>
+              </button>
+            </div>
+
+            <div className="text-center">
+              <button
+                onClick={() => {
+                  setEntryChoice('offline');
+                  setAppMode('setup');
+                }}
+                className="btn btn-secondary text-sm"
+              >
+                先離線開始（稍後再連線）
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Share view / Read-only board */}
         {appMode === 'view' && (
           <div className="space-y-6 max-w-3xl mx-auto">
@@ -146,7 +244,7 @@ export default function App() {
                 onClick={() => {
                   window.history.pushState({}, document.title, window.location.pathname);
                   setGameState(INITIAL_STATE);
-                  setAppMode('setup');
+                  setAppMode('entry');
                 }}
                 className="btn btn-primary text-xs px-4"
               >
@@ -232,6 +330,19 @@ export default function App() {
               isTeachingMode={isTeachingMode}
               onComplete={handleSeatSetupComplete}
             />
+
+            <div className="max-w-2xl mx-auto">
+              <RoomManager 
+                gameState={gameState}
+                setGameState={setGameState}
+                roomId={roomId}
+                setRoomId={setRoomId}
+                isHost={isHost}
+                setIsHost={setIsHost}
+                isTeachingMode={isTeachingMode}
+                preferredAction={entryChoice}
+              />
+            </div>
           </div>
         )}
 
@@ -267,6 +378,7 @@ export default function App() {
                 isHost={isHost}
                 setIsHost={setIsHost}
                 isTeachingMode={isTeachingMode}
+                preferredAction={entryChoice}
               />
             </div>
           </div>
