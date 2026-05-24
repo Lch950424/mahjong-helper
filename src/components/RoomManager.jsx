@@ -69,63 +69,81 @@ export default function RoomManager({
       clientRef.current.end();
     }
 
+    // Set Room ID and Host state immediately so UI updates instantly!
+    setRoomId(targetRoomId);
+    setIsHost(amIHost);
     setMqttStatus('connecting');
     
-    // MQTT client configuration
-    // We use a randomized clientId
     const clientId = `mj_player_${Math.random().toString(16).substring(2, 8)}`;
     
-    // Using HiveMQ public WebSocket broker
-    const brokerUrl = 'wss://broker.hivemq.com:8004/mqtt';
+    // Multiple fallback public brokers in case HiveMQ is blocked/offline
+    const BROKERS = [
+      'wss://broker.hivemq.com:8004/mqtt',
+      'wss://broker.emqx.io:8084/mqtt',
+      'wss://test.mosquitto.org:8081/mqtt'
+    ];
+    let brokerIndex = 0;
     
-    try {
-      const client = window.mqtt.connect(brokerUrl, {
-        clientId,
-        clean: true,
-        connectTimeout: 5000,
-        reconnectPeriod: 2000,
-      });
-
-      clientRef.current = client;
-
-      client.on('connect', () => {
-        setMqttStatus('connected');
-        setRoomId(targetRoomId);
-        setIsHost(amIHost);
-        
-        // Subscribe to state updates
-        client.subscribe(`mahjong-helper/room/${targetRoomId}/state`, { qos: 1 });
-        
-        // If guest, request initial state or wait for broadcast
-        console.log(`Connected to room: ${targetRoomId} as ${amIHost ? 'Host' : 'Guest'}`);
-      });
-
-      client.on('message', (topic, message) => {
-        try {
-          const data = JSON.parse(message.toString());
-          // Only update if message is from a different client and is newer
-          if (data.senderId !== clientId) {
-            syncInProgress.current = true;
-            setGameState(data.state);
-          }
-        } catch (e) {
-          console.error('Error parsing sync message:', e);
-        }
-      });
-
-      client.on('error', (err) => {
-        console.error('MQTT connection error:', err);
+    const tryConnect = () => {
+      if (!window.mqtt) {
+        console.error('MQTT.js library not loaded in window!');
         setMqttStatus('error');
-      });
+        return;
+      }
+      
+      const brokerUrl = BROKERS[brokerIndex];
+      console.log(`Connecting to MQTT broker: ${brokerUrl} (Attempt ${brokerIndex + 1})`);
+      
+      try {
+        const client = window.mqtt.connect(brokerUrl, {
+          clientId,
+          clean: true,
+          connectTimeout: 4000,
+          reconnectPeriod: 4000,
+        });
 
-      client.on('close', () => {
-        setMqttStatus('disconnected');
-      });
+        clientRef.current = client;
 
-    } catch (err) {
-      console.error('MQTT Initialization failed:', err);
-      setMqttStatus('error');
-    }
+        client.on('connect', () => {
+          setMqttStatus('connected');
+          client.subscribe(`mahjong-helper/room/${targetRoomId}/state`, { qos: 1 });
+          console.log(`Successfully connected to broker ${brokerUrl} for room ${targetRoomId}`);
+        });
+
+        client.on('message', (topic, message) => {
+          try {
+            const data = JSON.parse(message.toString());
+            if (data.senderId !== clientId) {
+              syncInProgress.current = true;
+              setGameState(data.state);
+            }
+          } catch (e) {
+            console.error('Error parsing sync message:', e);
+          }
+        });
+
+        client.on('error', (err) => {
+          console.warn(`Connection failed for broker: ${brokerUrl}. Retrying next...`, err);
+          client.end();
+          
+          // Switch to next broker and retry after delay
+          brokerIndex = (brokerIndex + 1) % BROKERS.length;
+          setMqttStatus('connecting');
+          setTimeout(tryConnect, 2000);
+        });
+
+        client.on('close', () => {
+          console.log(`Connection closed for broker: ${brokerUrl}`);
+        });
+
+      } catch (err) {
+        console.error('MQTT connection initialization threw error:', err);
+        brokerIndex = (brokerIndex + 1) % BROKERS.length;
+        setTimeout(tryConnect, 2000);
+      }
+    };
+    
+    tryConnect();
   };
 
   const handleCreateRoom = () => {
