@@ -26,51 +26,71 @@ const INITIAL_STATE = {
 
 const STORAGE_KEY = 'mahjong-helper:session-v1';
 
-function loadPersistedSession() {
+function loadInitialSession() {
+  const params = new URLSearchParams(window.location.search);
+  const shareParam = params.get('share');
+  const roomParam = params.get('room');
+
+  if (shareParam) {
+    try {
+      const decodedData = JSON.parse(decodeURIComponent(atob(shareParam)));
+      return {
+        gameState: decodedData,
+        appMode: 'view',
+        isTeachingMode: true,
+        roomId: '',
+        isHost: false,
+        entryChoice: '',
+      };
+    } catch (err) {
+      console.error('Failed to parse shared URL state:', err);
+    }
+  }
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
+    const persisted = raw ? JSON.parse(raw) : null;
+
+    if (roomParam) {
+      return {
+        gameState: persisted?.gameState || INITIAL_STATE,
+        appMode: 'play',
+        isTeachingMode: typeof persisted?.isTeachingMode === 'boolean' ? persisted.isTeachingMode : true,
+        roomId: roomParam.toLowerCase(),
+        isHost: false,
+        entryChoice: 'join',
+      };
+    }
+
+    return {
+      gameState: persisted?.gameState || INITIAL_STATE,
+      appMode: persisted?.appMode || 'entry',
+      isTeachingMode: typeof persisted?.isTeachingMode === 'boolean' ? persisted.isTeachingMode : true,
+      roomId: persisted?.roomId || '',
+      isHost: Boolean(persisted?.isHost),
+      entryChoice: persisted?.entryChoice || '',
+    };
   } catch (err) {
     console.error('Failed to load persisted session:', err);
-    return null;
+    return {
+      gameState: INITIAL_STATE,
+      appMode: roomParam ? 'play' : 'entry',
+      isTeachingMode: true,
+      roomId: roomParam ? roomParam.toLowerCase() : '',
+      isHost: false,
+      entryChoice: roomParam ? 'join' : '',
+    };
   }
 }
 
 export default function App() {
-  const persisted = loadPersistedSession();
-  const [gameState, setGameState] = useState(persisted?.gameState || INITIAL_STATE);
-  const [appMode, setAppMode] = useState(persisted?.appMode || 'entry'); // entry, setup, play, finish, view
-  const [isTeachingMode, setIsTeachingMode] = useState(
-    typeof persisted?.isTeachingMode === 'boolean' ? persisted.isTeachingMode : true
-  );
-  const [roomId, setRoomId] = useState(persisted?.roomId || '');
-  const [isHost, setIsHost] = useState(Boolean(persisted?.isHost));
-  const [entryChoice, setEntryChoice] = useState(persisted?.entryChoice || '');
-
-  // Check URL parameters for share-view / direct room join
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const shareParam = params.get('share');
-    const roomParam = params.get('room');
-    if (shareParam) {
-      try {
-        const decodedData = JSON.parse(decodeURIComponent(atob(shareParam)));
-        setGameState(decodedData);
-        setAppMode('view');
-      } catch (e) {
-        console.error('Failed to parse shared URL state:', e);
-      }
-      return;
-    }
-
-    if (roomParam) {
-      setAppMode('play');
-      setRoomId(roomParam.toLowerCase());
-      setIsHost(false);
-      setEntryChoice('join');
-    }
-  }, []);
+  const [initialSession] = useState(loadInitialSession);
+  const [gameState, setGameState] = useState(initialSession.gameState);
+  const [appMode, setAppMode] = useState(initialSession.appMode); // entry, setup, play, finish, view
+  const [isTeachingMode, setIsTeachingMode] = useState(initialSession.isTeachingMode);
+  const [roomId, setRoomId] = useState(initialSession.roomId);
+  const [isHost, setIsHost] = useState(initialSession.isHost);
+  const [entryChoice, setEntryChoice] = useState(initialSession.entryChoice);
 
   // Persist important session states to avoid losing records after refresh
   useEffect(() => {
@@ -254,7 +274,7 @@ export default function App() {
 
             {/* Read only scorecard */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {gameState.players.map((p, idx) => (
+              {gameState.players.map((p) => (
                 <div key={p.name} className="glass-panel p-4 text-center border-gray-800">
                   <span className="text-xs text-gray-500 font-mono block mb-1">{p.wind}風位</span>
                   <h4 className="text-md font-bold text-white mb-2">{p.name}</h4>
