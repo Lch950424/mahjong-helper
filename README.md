@@ -1,16 +1,71 @@
-# React + Vite
+# 🀄 台灣麻將助手 (Taiwan Mahjong Assistant)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一個專為家庭聚會與新手教學設計的現代化、響應式台灣 16 張麻將計分與台數計算網頁應用程式。
 
-Currently, two official plugins are available:
+## ✨ 特色功能
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. **🎲 互動式抓位與座位指南**
+   - 新手友好的抓位儀式說明。
+   - 虛擬擲骰模擬（自動計算起抽玩家）與風牌抽籤（東、南、西、北）。
+   - 提供實體座位就座示意圖（逆時針順序：東 ➔ 南 ➔ 西 ➔ 北）。
+   - **高手模式**支援一鍵快速隨機分位。
 
-## React Compiler
+2. **⚖️ 智慧記分板與對局日誌**
+   - 精確追蹤圈局（如：東風圈東風局）、當前局數與莊家連莊數（連N拉N）。
+   - 支援三種結算狀態：**自摸**（向其餘三家收取基本分與台數分）、**胡牌/放槍**（僅向放槍者收費）、**流局**（分數不變，莊家連莊數 +1）。
+   - 支援「復原/Undo」防呆機制，可隨時撤銷上一手錯誤登錄並還原分數。
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+3. **🧮 台灣麻將台數計算器**
+   - 整理台灣 16 張麻將常見的台數規則（基本/聽牌、字牌風牌、牌面結構、花色特殊、花牌）。
+   - **智慧防呆互斥**：選擇「大三元」自動取消「小三元」；選擇「清一色」自動互斥「混一色」；「門清」加「自摸」自動折算門清自摸（3台），避免重複計台。
+   - **教學模式**下，點擊任何牌型皆可即時查看該台數的詳細規則說明。
 
-## Expanding the ESLint configuration
+4. **📡 手機多人即時連線同步**
+   - 基於免費公用 MQTT 協定，無須註冊或設定任何伺服器。
+   - 主持人建立房間後，將生成專屬房號與 QR Code。
+   - 其他玩家用手機掃描 QR Code 即可同步加入房間。任何人在手機上記分，所有人的畫面將**即時同步更新**。
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+5. **🏆 勝負結算海報與歷史重播連結**
+   - 透過 HTML5 Canvas 生成精美的戰績海報圖片，支援一鍵下載，方便分享至 Line/FB 等社群。
+   - 產生內嵌完整對局歷史紀錄的分享連結（Base64 編碼），點擊連結即可用互動式唯讀面板重播整場比賽。
+
+---
+
+## 🛠️ 本地開發與啟動
+
+請確保您的電腦已安裝 [Node.js](https://nodejs.org/)。
+
+1. **安裝依賴套件**：
+   ```bash
+   npm install
+   ```
+
+2. **啟動本地開發伺服器**：
+   ```bash
+   npm run dev
+   ```
+   啟動後，在瀏覽器打開終端機顯示的網址（通常為 `http://localhost:5173`）即可使用。
+
+3. **專案打包編譯**：
+   ```bash
+   npm run build
+   ```
+
+---
+
+## 🚀 部署至 GitHub Pages
+
+本專案已配置 GitHub Actions 自動化部署工作流（位於 `.github/workflows/deploy.yml`）。
+
+### 部署步驟：
+
+1. 在 GitHub 上建立一個新的公開儲存庫（Repository），例如命名為 `mahjong-helper`。
+2. 將本地專案連結至您的 GitHub 儲存庫並推送：
+   ```bash
+   git remote add origin https://github.com/您的帳號/mahjong-helper.git
+   git branch -M main
+   git push -u origin main --force
+   ```
+3. 推送後，GitHub Actions 將會自動編譯專案並發布至 `gh-pages` 分支。
+4. 前往儲存庫的 **Settings** -> **Pages**，將 Build and deployment 的 Source 設定為 **Deploy from a branch**，並選擇 **`gh-pages`** 分支保存。
+5. 您的網頁將在數分鐘內於 `https://您的帳號.github.io/mahjong-helper/` 上線！
