@@ -518,3 +518,33 @@ body {
   font-weight: bold;
 }
 
+/* Dedicated overlay for explanation popups, ensuring it displays above parent modals */
+.desc-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999 !important; /* Forces overlay on top of any other modals */
+  padding: 16px;
+}
+
+.desc-modal-content {
+  width: 100%;
+  max-width: 380px;
+  background: #0B1E14;
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), var(--shadow-gold);
+  text-align: center;
+  animation: modalEnter 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+

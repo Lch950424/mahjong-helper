@@ -1177,8 +1177,8 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
 
       {/* Floating Explanation Modal Popup */}
       {selectedDesc && (
-        <div className="modal-overlay" style={{ zIndex: 1300 }}>
-          <div className="modal-content glass-panel p-6 border-[#D4AF37]/50 bg-[#071810]/95 text-center max-w-sm">
+        <div className="desc-modal-overlay">
+          <div className="desc-modal-content">
             <span className="text-4xl block mb-2">🀄</span>
             <h3 className="text-lg font-black text-[#D4AF37] mb-3">
               {selectedDesc.title}

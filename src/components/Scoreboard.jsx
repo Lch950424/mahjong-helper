@@ -1,6 +1,18 @@
 import React, { useState } from 'react';
 import TaiCalculator from './TaiCalculator';
 
+const TAI_NAME_MAP = {
+  zimo: '自摸', menqing: '門清', duting: '獨聽', qianggang: '搶槓',
+  gangkai: '槓上開花', haidi: '海底撈月', tingpai: '聽牌', migi: '咪幾',
+  zhuangjia: '莊家', quanfeng: '圈風刻', menfeng: '門風刻', sanyuan: '三元牌刻',
+  xiaosanyuan: '小三元', dasanyuan: '大三元', xiaosixi: '小四喜', dasisixi: '大四喜',
+  pinghu: '平和', pengpenghu: '碰碰胡', quanqiuren: '全求人', banqiuren: '半求人',
+  sanamke: '三暗刻', sianmke: '四暗刻', wuanmke: '五暗刻',
+  hunyise: '混一色', qingyise: '清一色', liguligu: '嚦咕嚦咕',
+  tianhu: '天胡', dihu: '地胡', zhenghua: '正花', yitaihua: '一台花',
+  qiqiangyi: '七搶一', baxianguohai: '八仙過海'
+};
+
 export default function Scoreboard({ 
   gameState, 
   setGameState, 
@@ -327,8 +339,8 @@ export default function Scoreboard({
                   {log.taiDetails && log.taiDetails.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {log.taiDetails.map(t => (
-                        <span key={t} className="text-[10px] bg-emerald-950/50 border border-emerald-500/20 text-[#10B981] px-1 rounded">
-                          {t}
+                        <span key={t} className="text-[10px] bg-emerald-950/50 border border-emerald-500/20 text-[#10B981] px-1.5 py-0.5 rounded font-mono">
+                          {TAI_NAME_MAP[t] || t}
                         </span>
                       ))}
                     </div>
