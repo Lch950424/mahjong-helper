@@ -93,7 +93,7 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
   const [counts, setCounts] = useState({ sanyuan: 0, zhenghua: 0, yitaihua: 0 });
   const [dealerStreak, setDealerStreak] = useState(currentDealerStreak || 0);
   const [totalTai, setTotalTai] = useState(0);
-  const [selectedDesc, setSelectedDesc] = useState('');
+  const [selectedDesc, setSelectedDesc] = useState(null);
 
   // --- TAB 2: Auto Hand Builder State ---
   const [concealedHand, setConcealedHand] = useState([]); // Array of tile strings
@@ -222,7 +222,10 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
   };
 
   const handleShowDesc = (item) => {
-    setSelectedDesc(`【${item.name} / ${item.tai}台】：${item.desc}`);
+    setSelectedDesc({
+      title: `🀄 ${item.name} (${item.tai}台)`,
+      desc: item.desc
+    });
   };
 
   // --- TAB 2: Hand Builder Actions ---
@@ -694,19 +697,7 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
             </div>
           )}
 
-          {selectedDesc && (
-            <div className="bg-[#D4AF37]/10 border border-[#D4AF37]/45 p-3 rounded-lg text-sm text-gray-200 mb-4 animate-slideIn relative">
-              <div className="flex justify-between items-start gap-2">
-                <p className="flex-1 leading-relaxed">{selectedDesc}</p>
-                <button 
-                  onClick={() => setSelectedDesc('')} 
-                  className="text-xs text-gray-500 hover:text-white font-bold shrink-0 px-1"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Description moved to overlay popup */}
 
           <div className="space-y-4 max-h-[45vh] overflow-y-auto pr-1">
             {Object.entries(TAI_ITEMS).map(([category, items]) => {
@@ -850,7 +841,7 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
                 setCounts({ sanyuan: 0, zhenghua: 0, yitaihua: 0 });
                 setDealerStreak(0);
                 setTotalTai(0);
-                setSelectedDesc('');
+                setSelectedDesc(null);
               }}
               className="btn btn-secondary flex-1 py-2 text-xs"
             >
@@ -1179,6 +1170,27 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
               }`}
             >
               💾 套用自動台數
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Explanation Modal Popup */}
+      {selectedDesc && (
+        <div className="modal-overlay" style={{ zIndex: 1300 }}>
+          <div className="modal-content glass-panel p-6 border-[#D4AF37]/50 bg-[#071810]/95 text-center max-w-sm">
+            <span className="text-4xl block mb-2">🀄</span>
+            <h3 className="text-lg font-black text-[#D4AF37] mb-3">
+              {selectedDesc.title}
+            </h3>
+            <p className="text-xs text-gray-300 leading-relaxed mb-6 text-left bg-black/40 p-4 rounded-lg border border-gray-800">
+              {selectedDesc.desc}
+            </p>
+            <button
+              onClick={() => setSelectedDesc(null)}
+              className="btn btn-primary w-full py-2.5 text-xs font-bold"
+            >
+              我知道了
             </button>
           </div>
         </div>
