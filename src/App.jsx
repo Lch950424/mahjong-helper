@@ -57,6 +57,10 @@ export default function App() {
       // Direct room join via link
       setRoomId(roomParam);
       setIsHost(false);
+      setGameState({
+        ...INITIAL_STATE,
+        version: -1
+      });
       setAppMode('play');
       return;
     }
@@ -156,6 +160,10 @@ export default function App() {
     // Set parameters which triggers RoomManager connect on load
     setRoomId(targetRoomId);
     setIsHost(false);
+    setGameState({
+      ...INITIAL_STATE,
+      version: -1
+    });
     setAppMode('play');
   };
 
@@ -398,31 +406,41 @@ export default function App() {
           </div>
         )}
 
-        {/* Phase 2: Active Scoreboard & Recording */}
-        {appMode === 'play' && (
+        {/* Phase 2 & 3: Active Scoreboard or Share view + Room Sync */}
+        {(appMode === 'play' || appMode === 'finish') && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Scoreboard and logs (Takes 2 columns on large screen) */}
+            {/* Left side: Scoreboard (during play) or ShareCard (during finish) */}
             <div className="lg:col-span-2 space-y-6">
-              <Scoreboard 
-                gameState={gameState} 
-                setGameState={setGameState}
-                isTeachingMode={isTeachingMode}
-                isHost={isHost}
-              />
-              
-              {!isGuest && (
-                <div className="pt-2">
-                  <button
-                    onClick={handleFinishGame}
-                    className="btn btn-accent w-full py-3.5 text-lg font-black"
-                  >
-                    🏁 結束本局對局，結算勝負！
-                  </button>
-                </div>
+              {appMode === 'play' ? (
+                <>
+                  <Scoreboard 
+                    gameState={gameState} 
+                    setGameState={setGameState}
+                    isTeachingMode={isTeachingMode}
+                    isHost={isHost}
+                    isGuest={isGuest}
+                  />
+                  
+                  {!isGuest && (
+                    <div className="pt-2">
+                      <button
+                        onClick={handleFinishGame}
+                        className="btn btn-accent w-full py-3.5 text-lg font-black"
+                      >
+                        🏁 結束本局對局，結算勝負！
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <ShareCard 
+                  gameState={gameState}
+                  isTeachingMode={isTeachingMode}
+                />
               )}
             </div>
 
-            {/* Room Sync Manager (Takes 1 column on large screen) */}
+            {/* Right side: Room Sync Manager (remains mounted to sync finish state) */}
             <div className="space-y-6">
               <RoomManager 
                 gameState={gameState}
@@ -436,14 +454,6 @@ export default function App() {
               />
             </div>
           </div>
-        )}
-
-        {/* Phase 3: Game Finished & Sharing */}
-        {appMode === 'finish' && (
-          <ShareCard 
-            gameState={gameState}
-            isTeachingMode={isTeachingMode}
-          />
         )}
       </main>
 

@@ -60,9 +60,9 @@ export default function RoomManager({
     }
   }, [roomId, mqttStatus]);
 
-  // Broadcast state changes to room (only if we updated it locally, i.e., syncInProgress is false)
+  // Broadcast state changes to room (only if Host and updated locally)
   useEffect(() => {
-    if (mqttStatus === 'connected' && clientRef.current && roomId) {
+    if (mqttStatus === 'connected' && clientRef.current && roomId && isHost) {
       if (syncInProgress.current) {
         syncInProgress.current = false;
         return;
@@ -76,7 +76,7 @@ export default function RoomManager({
       
       clientRef.current.publish(`mahjong-helper/room/${roomId}/state`, payload, { qos: 1, retain: true });
     }
-  }, [gameState, roomId, mqttStatus]);
+  }, [gameState, roomId, mqttStatus, isHost]);
 
   const connectToRoom = (targetRoomId, amIHost) => {
     if (clientRef.current) {

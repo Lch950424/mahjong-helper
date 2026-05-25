@@ -17,7 +17,8 @@ export default function Scoreboard({
   gameState, 
   setGameState, 
   isTeachingMode,
-  isHost
+  isHost,
+  isGuest
 }) {
   const [showLogModal, setShowLogModal] = useState(false);
   const [showTaiCalcModal, setShowTaiCalcModal] = useState(false);
@@ -299,24 +300,31 @@ export default function Scoreboard({
       </div>
 
       {/* Primary Action Buttons */}
-      <div className="flex gap-4">
-        <button
-          onClick={handleOpenLogModal}
-          className="btn btn-primary flex-1 py-3 text-lg"
-        >
-          📝 登記這回合結果
-        </button>
-
-        {history.length > 0 && (
+      {!isGuest ? (
+        <div className="flex gap-4">
           <button
-            onClick={handleUndoLastHand}
-            className="btn btn-secondary px-4 text-sm"
-            title="復原上一手"
+            onClick={handleOpenLogModal}
+            className="btn btn-primary flex-1 py-3 text-lg"
           >
-            ↩ 復原
+            📝 登記這回合結果
           </button>
-        )}
-      </div>
+
+          {history.length > 0 && (
+            <button
+              onClick={handleUndoLastHand}
+              className="btn btn-secondary px-4 text-sm"
+              title="復原上一手"
+            >
+              ↩ 復原
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="bg-[#12261C] border border-[#10B981]/20 p-4 rounded-xl text-center text-gray-300 text-sm flex items-center justify-center gap-2">
+          <span className="text-xl">📡</span>
+          <span>您已成功加入對局房間！您是成員身份，房主記錄的分數與結果將會即時同步顯示在此畫面上。</span>
+        </div>
+      )}
 
       {/* History Log */}
       <div className="glass-panel p-4">
