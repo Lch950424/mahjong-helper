@@ -8,7 +8,8 @@ export default function RoomManager({
   setRoomId, 
   isHost, 
   setIsHost, 
-  isTeachingMode 
+  isTeachingMode,
+  setAppMode
 }) {
   const [mqttStatus, setMqttStatus] = useState('disconnected'); // disconnected, connecting, connected, error
   const [joinCodeInput, setJoinCodeInput] = useState('');
@@ -187,6 +188,9 @@ export default function RoomManager({
                 console.log(`Syncing state: local version ${localVersion} -> incoming version ${incomingVersion}`);
                 syncInProgress.current = true;
                 setGameState(data.state);
+                if (data.state.appMode && setAppMode) {
+                  setAppMode(data.state.appMode);
+                }
               }
             }
           } catch (e) {

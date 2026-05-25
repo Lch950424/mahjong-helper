@@ -33,6 +33,8 @@ export default function App() {
   const [isHost, setIsHost] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState('');
 
+  const isGuest = roomId && !isHost;
+
   // 1. Check URL parameters and Restore localStorage on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -98,6 +100,7 @@ export default function App() {
     setGameState(prev => ({
       ...prev,
       players: arrangedPlayers,
+      appMode: 'play',
       version: (prev.version || 0) + 1
     }));
     setAppMode('play');
@@ -105,6 +108,11 @@ export default function App() {
 
   const handleFinishGame = () => {
     if (window.confirm('確定要結束本局並進行勝負結算嗎？')) {
+      setGameState(prev => ({
+        ...prev,
+        appMode: 'finish',
+        version: (prev.version || 0) + 1
+      }));
       setAppMode('finish');
     }
   };
@@ -118,7 +126,9 @@ export default function App() {
 
       setGameState({
         ...INITIAL_STATE,
-        baseSetting: gameState.baseSetting // Keep current base settings
+        baseSetting: gameState.baseSetting,
+        appMode: 'landing',
+        version: 0
       });
       setAppMode('landing');
       setRoomId('');
@@ -191,7 +201,7 @@ export default function App() {
               </button>
             </div>
 
-            {appMode !== 'landing' && appMode !== 'join_room' && appMode !== 'view' && (
+            {appMode !== 'landing' && appMode !== 'join_room' && appMode !== 'view' && !isGuest && (
               <button
                 onClick={handleRestartGame}
                 className="btn btn-secondary py-1.5 px-3 text-xs border-red-900/30 text-red-400 hover:bg-red-950/20"
@@ -400,14 +410,16 @@ export default function App() {
                 isHost={isHost}
               />
               
-              <div className="pt-2">
-                <button
-                  onClick={handleFinishGame}
-                  className="btn btn-accent w-full py-3.5 text-lg font-black"
-                >
-                  🏁 結束本局對局，結算勝負！
-                </button>
-              </div>
+              {!isGuest && (
+                <div className="pt-2">
+                  <button
+                    onClick={handleFinishGame}
+                    className="btn btn-accent w-full py-3.5 text-lg font-black"
+                  >
+                    🏁 結束本局對局，結算勝負！
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Room Sync Manager (Takes 1 column on large screen) */}
@@ -420,6 +432,7 @@ export default function App() {
                 isHost={isHost}
                 setIsHost={setIsHost}
                 isTeachingMode={isTeachingMode}
+                setAppMode={setAppMode}
               />
             </div>
           </div>
