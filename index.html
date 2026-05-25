@@ -11,8 +11,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     
-    <!-- MQTT.js CDN for reliable WebSocket P2P-like room sync without build-time node polyfill errors -->
-    <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+    <!-- High-reliability MQTT.js CDN load with jsDelivr as primary and unpkg as fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
+    <script>
+      if (!window.mqtt) {
+        console.warn("jsDelivr failed to load MQTT.js. Falling back to unpkg CDN...");
+        var script = document.createElement('script');
+        script.src = "https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js";
+        document.head.appendChild(script);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

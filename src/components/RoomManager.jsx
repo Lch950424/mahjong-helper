@@ -80,6 +80,7 @@ export default function RoomManager({
   const connectToRoom = (targetRoomId, amIHost) => {
     if (clientRef.current) {
       clientRef.current.end();
+      clientRef.current = null;
     }
 
     // Update Room ID and Host state immediately so the UI transitions instantly!
@@ -96,11 +97,17 @@ export default function RoomManager({
       'wss://test.mosquitto.org:8081/mqtt'
     ];
     let brokerIndex = 0;
+    let connectionTimeout = null;
     
     const tryConnect = () => {
+      // Clear previous timeout if any
+      if (connectionTimeout) clearTimeout(connectionTimeout);
+
+      // Race condition safety: If CDN script hasn't finished loading, wait and retry
       if (!window.mqtt) {
-        console.error('MQTT.js library not loaded in window!');
-        setMqttStatus('error');
+        console.log('MQTT.js not loaded in window yet. Retrying in 500ms...');
+        setMqttStatus('connecting');
+        connectionTimeout = setTimeout(tryConnect, 500);
         return;
       }
       
@@ -112,12 +119,25 @@ export default function RoomManager({
           clientId,
           clean: true,
           connectTimeout: 4000,
-          reconnectPeriod: 4000,
+          reconnectPeriod: 10000, // Keep long reconnect to prevent collision with manual rotation
         });
 
         clientRef.current = client;
 
+        // Manual timeout: If it doesn't connect in 5 seconds, rotate broker and try again
+        connectionTimeout = setTimeout(() => {
+          if (clientRef.current && mqttStatus !== 'connected') {
+            console.warn(`Connection to ${brokerUrl} timed out after 5s. Rotating to next broker...`);
+            client.end();
+            clientRef.current = null;
+            brokerIndex = (brokerIndex + 1) % BROKERS.length;
+            setMqttStatus('connecting');
+            tryConnect();
+          }
+        }, 5000);
+
         client.on('connect', () => {
+          if (connectionTimeout) clearTimeout(connectionTimeout);
           setMqttStatus('connected');
           
           // Subscribe to state updates
@@ -175,12 +195,8 @@ export default function RoomManager({
         });
 
         client.on('error', (err) => {
-          console.warn(`Connection failed for broker: ${brokerUrl}. Retrying next...`, err);
-          client.end();
-          
-          brokerIndex = (brokerIndex + 1) % BROKERS.length;
-          setMqttStatus('connecting');
-          setTimeout(tryConnect, 2000);
+          console.warn(`MQTT connection error on ${brokerUrl}:`, err);
+          // Let the 5s timeout handle rotation
         });
 
         client.on('close', () => {
@@ -190,7 +206,7 @@ export default function RoomManager({
       } catch (err) {
         console.error('MQTT connection initialization threw error:', err);
         brokerIndex = (brokerIndex + 1) % BROKERS.length;
-        setTimeout(tryConnect, 2000);
+        connectionTimeout = setTimeout(tryConnect, 2000);
       }
     };
     
