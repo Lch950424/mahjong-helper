@@ -1,5 +1,6 @@
 # 🀄 台灣麻將助手 (Taiwan Mahjong Assistant)
 https://lch950424.github.io/mahjong-helper/
+
 一個專為家庭聚會與新手教學設計的現代化、響應式台灣 16 張麻將計分與台數計算網頁應用程式。
 
 ## ✨ 特色功能
