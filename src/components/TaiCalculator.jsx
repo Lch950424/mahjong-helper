@@ -221,6 +221,10 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
     });
   };
 
+  const handleShowDesc = (item) => {
+    setSelectedDesc(`【${item.name} / ${item.tai}台】：${item.desc}`);
+  };
+
   // --- TAB 2: Hand Builder Actions ---
   const handleAddToPool = (tileCode) => {
     if (tileCode.startsWith('H')) {
@@ -691,8 +695,16 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
           )}
 
           {selectedDesc && (
-            <div className="bg-black/30 border border-gray-700 p-3 rounded text-sm text-gray-300 mb-4 animate-slideIn">
-              {selectedDesc}
+            <div className="bg-[#D4AF37]/10 border border-[#D4AF37]/45 p-3 rounded-lg text-sm text-gray-200 mb-4 animate-slideIn relative">
+              <div className="flex justify-between items-start gap-2">
+                <p className="flex-1 leading-relaxed">{selectedDesc}</p>
+                <button 
+                  onClick={() => setSelectedDesc('')} 
+                  className="text-xs text-gray-500 hover:text-white font-bold shrink-0 px-1"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           )}
 
@@ -760,51 +772,66 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
                       return (
                         <div 
                           key={item.id} 
-                          className={`flex flex-col justify-between p-2 rounded border text-left cursor-pointer transition-all ${
+                          className={`flex items-center justify-between p-2.5 rounded border text-left cursor-pointer transition-all ${
                             isChecked 
                               ? 'bg-emerald-950/30 border-emerald-500/50 text-white' 
-                              : 'bg-black/20 border-gray-800 text-gray-400 hover:border-gray-700'
+                              : 'bg-black/20 border-gray-800 text-gray-400 hover:border-gray-700 hover:bg-black/35'
                           }`}
-                          onClick={() => {
-                            if (!item.count) {
-                              toggleSelect(item.id);
-                            }
-                            handleShowDesc(item);
-                          }}
+                          onClick={() => handleShowDesc(item)}
                         >
-                          <div className="flex justify-between items-start gap-1">
-                            <span className="text-xs font-semibold">{item.name}</span>
-                            <span className="text-xs text-gray-500 shrink-0">+{item.tai}台</span>
+                          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                            {!item.count ? (
+                              <input 
+                                type="checkbox"
+                                checked={isChecked || false}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelect(item.id);
+                                }}
+                                className="w-4 h-4 accent-[#10B981] cursor-pointer shrink-0"
+                              />
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                            )}
+                            
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-white truncate">{item.name}</p>
+                              <span className="text-[10px] text-gray-500">+{item.tai}台</span>
+                            </div>
                           </div>
                           
                           {item.count ? (
                             <div 
-                              className="flex items-center justify-between mt-2 pt-1 border-t border-gray-800"
+                              className="flex items-center gap-1.5 shrink-0"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <span className="text-[10px] text-gray-500">數量:</span>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleCountChange(item.id, Math.max(0, (counts[item.id] || 0) - 1))}
-                                  className="w-4 h-4 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded text-xs text-white"
-                                >
-                                  -
-                                </button>
-                                <span className="text-xs font-bold text-[#10B981]">{counts[item.id] || 0}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCountChange(item.id, Math.min(item.max, (counts[item.id] || 0) + 1))}
-                                  className="w-4 h-4 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded text-xs text-white"
-                                >
-                                  +
-                                </button>
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleCountChange(item.id, Math.max(0, (counts[item.id] || 0) - 1))}
+                                className="w-4 h-4 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded text-xs text-white"
+                              >
+                                -
+                              </button>
+                              <span className="text-xs font-bold text-[#10B981] min-w-4 text-center">{counts[item.id] || 0}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCountChange(item.id, Math.min(item.max, (counts[item.id] || 0) + 1))}
+                                className="w-4 h-4 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded text-xs text-white"
+                              >
+                                +
+                              </button>
                             </div>
                           ) : (
-                            <span className="text-[10px] text-gray-600 block text-right mt-1">
-                              {isChecked ? '✓ 已選' : '點選查看'}
-                            </span>
+                            <button
+                              type="button"
+                              className="text-[10px] text-gray-500 hover:text-white shrink-0 underline bg-transparent border-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShowDesc(item);
+                              }}
+                            >
+                              查看
+                            </button>
                           )}
                         </div>
                       );
@@ -1160,6 +1187,4 @@ export default function TaiCalculator({ onConfirm, isTeachingMode, currentDealer
   );
 }
 
-const handleShowDesc = (item) => {
-  // Helper kept for tab 1
-};
+// handleShowDesc moved inside the component
