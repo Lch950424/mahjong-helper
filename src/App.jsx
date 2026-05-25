@@ -21,35 +21,84 @@ const INITIAL_STATE = {
   baseSetting: {
     base: 50,
     taiValue: 20,
-  }
+  },
+  version: 0
 };
 
 export default function App() {
   const [gameState, setGameState] = useState(INITIAL_STATE);
-  const [appMode, setAppMode] = useState('setup'); // setup, play, finish, view
+  const [appMode, setAppMode] = useState('landing'); // landing, setup, play, finish, view, join_room
   const [isTeachingMode, setIsTeachingMode] = useState(true);
   const [roomId, setRoomId] = useState('');
   const [isHost, setIsHost] = useState(false);
+  const [joinCodeInput, setJoinCodeInput] = useState('');
 
-  // Check URL parameters for share-view
+  // 1. Check URL parameters and Restore localStorage on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const shareParam = params.get('share');
+    const roomParam = params.get('room');
+
     if (shareParam) {
+      // Direct share view (Read-only historical summary)
       try {
         const decodedData = JSON.parse(decodeURIComponent(atob(shareParam)));
         setGameState(decodedData);
         setAppMode('view');
+        return;
       } catch (e) {
         console.error('Failed to parse shared URL state:', e);
       }
     }
+
+    if (roomParam) {
+      // Direct room join via link
+      setRoomId(roomParam);
+      setIsHost(false);
+      setAppMode('play');
+      return;
+    }
+
+    // Normal visit - restore from localStorage
+    const savedState = localStorage.getItem('mahjong_helper_game_state');
+    const savedMode = localStorage.getItem('mahjong_helper_app_mode');
+    const savedRoomId = localStorage.getItem('mahjong_helper_room_id');
+    const savedIsHost = localStorage.getItem('mahjong_helper_is_host');
+    const savedTeaching = localStorage.getItem('mahjong_helper_teaching_mode');
+
+    if (savedState) {
+      try {
+        setGameState(JSON.parse(savedState));
+      } catch (e) {
+        console.error('Failed to parse saved game state:', e);
+      }
+    }
+    if (savedMode) {
+      setAppMode(savedMode);
+    } else {
+      setAppMode('landing');
+    }
+    if (savedRoomId) setRoomId(savedRoomId);
+    if (savedIsHost) setIsHost(savedIsHost === 'true');
+    if (savedTeaching) setIsTeachingMode(savedTeaching === 'true');
   }, []);
+
+  // 2. Persist state changes to localStorage
+  useEffect(() => {
+    if (appMode !== 'view' && appMode !== 'landing' && appMode !== 'join_room') {
+      localStorage.setItem('mahjong_helper_game_state', JSON.stringify(gameState));
+      localStorage.setItem('mahjong_helper_app_mode', appMode);
+      localStorage.setItem('mahjong_helper_room_id', roomId);
+      localStorage.setItem('mahjong_helper_is_host', isHost ? 'true' : 'false');
+      localStorage.setItem('mahjong_helper_teaching_mode', isTeachingMode ? 'true' : 'false');
+    }
+  }, [gameState, appMode, roomId, isHost, isTeachingMode]);
 
   const handleSeatSetupComplete = (arrangedPlayers) => {
     setGameState(prev => ({
       ...prev,
-      players: arrangedPlayers
+      players: arrangedPlayers,
+      version: (prev.version || 0) + 1
     }));
     setAppMode('play');
   };
@@ -62,11 +111,16 @@ export default function App() {
 
   const handleRestartGame = () => {
     if (window.confirm('確定要重開一局嗎？所有現有積分與紀錄將會被清除。')) {
+      localStorage.removeItem('mahjong_helper_game_state');
+      localStorage.removeItem('mahjong_helper_app_mode');
+      localStorage.removeItem('mahjong_helper_room_id');
+      localStorage.removeItem('mahjong_helper_is_host');
+
       setGameState({
         ...INITIAL_STATE,
         baseSetting: gameState.baseSetting // Keep current base settings
       });
-      setAppMode('setup');
+      setAppMode('landing');
       setRoomId('');
       setIsHost(false);
       window.history.pushState({}, document.title, window.location.pathname);
@@ -79,8 +133,20 @@ export default function App() {
       baseSetting: {
         ...prev.baseSetting,
         [field]: Math.max(1, parseInt(val) || 0)
-      }
+      },
+      version: (prev.version || 0) + 1
     }));
+  };
+
+  const handleJoinRoomSubmit = (e) => {
+    e.preventDefault();
+    if (!joinCodeInput.trim()) return;
+    const targetRoomId = joinCodeInput.trim().toLowerCase();
+    
+    // Set parameters which triggers RoomManager connect on load
+    setRoomId(targetRoomId);
+    setIsHost(false);
+    setAppMode('play');
   };
 
   return (
@@ -88,7 +154,11 @@ export default function App() {
       {/* Header Bar */}
       <header className="glass-panel rounded-none border-t-0 border-x-0 sticky top-0 z-50 px-4 py-3 bg-[#081810]/90">
         <div className="container flex flex-wrap justify-between items-center gap-3">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.href = window.location.origin + window.location.pathname}>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => {
+            if (appMode !== 'play' && appMode !== 'setup') {
+              window.location.href = window.location.origin + window.location.pathname;
+            }
+          }}>
             <span className="text-2xl">🀄</span>
             <div>
               <h1 className="text-md sm:text-lg font-black text-white leading-none">台灣麻將記分助手</h1>
@@ -107,7 +177,7 @@ export default function App() {
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
-                🎓 教學模式
+                🎓 教學
               </button>
               <button
                 onClick={() => setIsTeachingMode(false)}
@@ -117,11 +187,11 @@ export default function App() {
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
-                🔥 高手模式
+                🔥 高手
               </button>
             </div>
 
-            {appMode !== 'setup' && appMode !== 'view' && (
+            {appMode !== 'landing' && appMode !== 'join_room' && appMode !== 'view' && (
               <button
                 onClick={handleRestartGame}
                 className="btn btn-secondary py-1.5 px-3 text-xs border-red-900/30 text-red-400 hover:bg-red-950/20"
@@ -135,9 +205,92 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="container flex-grow py-6 px-4">
+        
+        {/* LANDING CHOICE PAGE */}
+        {appMode === 'landing' && (
+          <div className="max-w-xl mx-auto my-12 text-center space-y-8 animate-slideIn">
+            <div className="space-y-3">
+              <div className="text-6xl flex justify-center gap-2">
+                <span>🀄</span>
+                <span>🎲</span>
+              </div>
+              <h2 className="text-3xl font-black text-gradient text-[#D4AF37]">歡迎使用麻將計分助手</h2>
+              <p className="text-gray-400 text-sm">請選擇您要主持全新麻將局，還是加入朋友的手機同步房間：</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 pt-4">
+              <button
+                onClick={() => setAppMode('setup')}
+                className="glass-panel p-6 text-left border-gray-800 hover:border-[#D4AF37] hover:shadow-gold transition-all duration-300 flex items-center gap-4 group"
+              >
+                <div className="text-4xl bg-[#D4AF37]/10 p-3 rounded-lg text-[#D4AF37] group-hover:scale-110 transition-transform">
+                  🏠
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white mb-1">主持新對局 / 單機遊玩</h3>
+                  <p className="text-xs text-gray-500">自訂底台數、擲骰抓位及就座指南，並可選擇開房連線。</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setAppMode('join_room')}
+                className="glass-panel p-6 text-left border-gray-800 hover:border-[#10B981] hover:shadow-lg hover:shadow-emerald-950 transition-all duration-300 flex items-center gap-4 group"
+              >
+                <div className="text-4xl bg-[#10B981]/10 p-3 rounded-lg text-[#10B981] group-hover:scale-110 transition-transform">
+                  📡
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white mb-1">加入現有好友房間</h3>
+                  <p className="text-xs text-gray-500">輸入朋友發給您的房間代碼或掃描 QR Code，多人手機同步記分板。</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* JOIN ROOM PROMPT */}
+        {appMode === 'join_room' && (
+          <div className="glass-panel p-6 max-w-md mx-auto my-12 animate-slideIn border-gray-800">
+            <h3 className="text-xl font-bold text-[#10B981] mb-2 flex items-center gap-2">
+              📡 加入對局房間
+            </h3>
+            <p className="text-xs text-gray-400 mb-6">請輸入好友發給您的 5 碼房間代號（例如：mj-12345）。</p>
+
+            <form onSubmit={handleJoinRoomSubmit} className="space-y-4">
+              <div>
+                <label className="form-label">房間代號</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="mj-xxxxx"
+                  value={joinCodeInput}
+                  onChange={(e) => setJoinCodeInput(e.target.value)}
+                  className="form-input text-lg font-mono font-bold tracking-wider"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAppMode('landing')}
+                  className="btn btn-secondary flex-1 py-3 text-sm"
+                >
+                  返回選單
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary flex-1 py-3 text-sm"
+                >
+                  確認加入
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {/* Share view / Read-only board */}
         {appMode === 'view' && (
-          <div className="space-y-6 max-w-3xl mx-auto">
+          <div className="space-y-6 max-w-3xl mx-auto animate-slideIn">
             <div className="glass-panel p-6 border-[#D4AF37] bg-emerald-950/20 text-center">
               <span className="text-3xl">🏆</span>
               <h2 className="text-xl font-bold text-[#D4AF37] mt-2 mb-1">您正在瀏覽分享的對局戰績</h2>
@@ -146,7 +299,7 @@ export default function App() {
                 onClick={() => {
                   window.history.pushState({}, document.title, window.location.pathname);
                   setGameState(INITIAL_STATE);
-                  setAppMode('setup');
+                  setAppMode('landing');
                 }}
                 className="btn btn-primary text-xs px-4"
               >

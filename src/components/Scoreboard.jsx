@@ -65,7 +65,8 @@ export default function Scoreboard({
       setGameState({
         ...gameState,
         roundInfo: newRoundInfo,
-        history: [logEntry, ...history]
+        history: [logEntry, ...history],
+        version: (gameState.version || 0) + 1
       });
       setShowLogModal(false);
       return;
@@ -158,7 +159,8 @@ export default function Scoreboard({
         dealerStreak: nextDealerStreak,
         handNum: nextHandNum
       },
-      history: [logEntry, ...history]
+      history: [logEntry, ...history],
+      version: (gameState.version || 0) + 1
     });
 
     setShowLogModal(false);
@@ -211,7 +213,8 @@ export default function Scoreboard({
         dealerStreak: prevDealerStreak,
         handNum: Math.max(1, handNum - 1)
       },
-      history: history.slice(1)
+      history: history.slice(1),
+      version: (gameState.version || 0) + 1
     });
   };
 

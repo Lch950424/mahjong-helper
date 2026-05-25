@@ -17,7 +17,13 @@ export default function RoomManager({
   const clientRef = useRef(null);
   const syncInProgress = useRef(false);
 
-  // Parse room from URL on mount
+  // Use a Ref for gameState to avoid stale closures in MQTT message handlers
+  const gameStateRef = useRef(gameState);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
+  // Parse room from URL on mount (if joining via link)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
@@ -27,6 +33,14 @@ export default function RoomManager({
       connectToRoom(roomParam, false);
     }
   }, []);
+
+  // Self-healing: Auto reconnect on refresh if roomId is present in state/localStorage
+  useEffect(() => {
+    if (roomId && mqttStatus === 'disconnected' && !clientRef.current) {
+      console.log('Restoring MQTT connection on reload/mount for room:', roomId);
+      connectToRoom(roomId, isHost);
+    }
+  }, [roomId]);
 
   // Generate QR Code when Room ID changes
   useEffect(() => {
@@ -45,11 +59,10 @@ export default function RoomManager({
     }
   }, [roomId, mqttStatus]);
 
-  // Sync state changes to MQTT (Host broadcasts, Guest broadcasts if they edit)
+  // Broadcast state changes to room (only if we updated it locally, i.e., syncInProgress is false)
   useEffect(() => {
     if (mqttStatus === 'connected' && clientRef.current && roomId) {
       if (syncInProgress.current) {
-        // Prevent feedback loop
         syncInProgress.current = false;
         return;
       }
@@ -69,14 +82,14 @@ export default function RoomManager({
       clientRef.current.end();
     }
 
-    // Set Room ID and Host state immediately so UI updates instantly!
+    // Update Room ID and Host state immediately so the UI transitions instantly!
     setRoomId(targetRoomId);
     setIsHost(amIHost);
     setMqttStatus('connecting');
     
     const clientId = `mj_player_${Math.random().toString(16).substring(2, 8)}`;
     
-    // Multiple fallback public brokers in case HiveMQ is blocked/offline
+    // Multiple public MQTT brokers for failover redundancy
     const BROKERS = [
       'wss://broker.hivemq.com:8004/mqtt',
       'wss://broker.emqx.io:8084/mqtt',
@@ -106,16 +119,55 @@ export default function RoomManager({
 
         client.on('connect', () => {
           setMqttStatus('connected');
+          
+          // Subscribe to state updates
           client.subscribe(`mahjong-helper/room/${targetRoomId}/state`, { qos: 1 });
+          
+          if (amIHost) {
+            // Host subscribes to join pings
+            client.subscribe(`mahjong-helper/room/${targetRoomId}/join`, { qos: 1 });
+            // Broadcast initial state so anyone currently in room gets it
+            const payload = JSON.stringify({
+              senderId: clientId,
+              timestamp: Date.now(),
+              state: gameStateRef.current
+            });
+            client.publish(`mahjong-helper/room/${targetRoomId}/state`, payload, { qos: 1, retain: true });
+          } else {
+            // Guest sends a join ping to request state from the host
+            client.publish(`mahjong-helper/room/${targetRoomId}/join`, clientId, { qos: 1 });
+          }
           console.log(`Successfully connected to broker ${brokerUrl} for room ${targetRoomId}`);
         });
 
         client.on('message', (topic, message) => {
+          // Handshake protocol: Host responds to new joiners by republishing state
+          if (topic === `mahjong-helper/room/${targetRoomId}/join`) {
+            if (amIHost) {
+              console.log('Guest joined the room. Re-broadcasting current state...');
+              const payload = JSON.stringify({
+                senderId: clientId,
+                timestamp: Date.now(),
+                state: gameStateRef.current
+              });
+              client.publish(`mahjong-helper/room/${targetRoomId}/state`, payload, { qos: 1, retain: true });
+            }
+            return;
+          }
+
+          // State sync updates
           try {
             const data = JSON.parse(message.toString());
             if (data.senderId !== clientId) {
-              syncInProgress.current = true;
-              setGameState(data.state);
+              const incomingVersion = data.state?.version || 0;
+              const localVersion = gameStateRef.current.version || 0;
+              
+              // Only apply sync if incoming state version is higher
+              if (incomingVersion > localVersion) {
+                console.log(`Syncing state: local version ${localVersion} -> incoming version ${incomingVersion}`);
+                syncInProgress.current = true;
+                setGameState(data.state);
+              }
             }
           } catch (e) {
             console.error('Error parsing sync message:', e);
@@ -126,7 +178,6 @@ export default function RoomManager({
           console.warn(`Connection failed for broker: ${brokerUrl}. Retrying next...`, err);
           client.end();
           
-          // Switch to next broker and retry after delay
           brokerIndex = (brokerIndex + 1) % BROKERS.length;
           setMqttStatus('connecting');
           setTimeout(tryConnect, 2000);
@@ -166,7 +217,8 @@ export default function RoomManager({
     setRoomId('');
     setIsHost(false);
     setMqttStatus('disconnected');
-    // Clear query param
+    localStorage.removeItem('mahjong_helper_room_id');
+    localStorage.removeItem('mahjong_helper_is_host');
     window.history.pushState({}, document.title, window.location.pathname);
   };
 
